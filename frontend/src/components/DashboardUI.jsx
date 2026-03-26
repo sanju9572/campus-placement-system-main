@@ -16,6 +16,15 @@ const D = {
   headerBg: (dm) => dm ? "linear-gradient(135deg,#1e1b4b 0%,#065f46 100%)" : "linear-gradient(135deg,#4f46e5 0%,#10b981 100%)",
 };
 
+// ── HELPER: safely stringify API error detail ─────────────────────────────────
+function parseApiError(detail, fallback = "An error occurred") {
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map(e => e.msg || JSON.stringify(e)).join(", ");
+  if (typeof detail === "object") return detail.msg || detail.message || JSON.stringify(detail);
+  return String(detail);
+}
+
 // ── ICONS ─────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 18, color = "currentColor", strokeWidth = 1.7 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -98,7 +107,6 @@ function SectionTitle({ text, darkMode }) {
   );
 }
 
-// Spinner
 function Spinner({ color = "#10b981" }) {
   return (
     <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
@@ -106,7 +114,6 @@ function Spinner({ color = "#10b981" }) {
   );
 }
 
-// Toast notification
 function Toast({ message, type = "success", onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
   const bg = type === "success" ? "#10b981" : type === "error" ? "#ef4444" : "#6366f1";
@@ -114,7 +121,7 @@ function Toast({ message, type = "success", onClose }) {
     <motion.div initial={{ opacity: 0, y: -20, x: "-50%" }} animate={{ opacity: 1, y: 0, x: "-50%" }} exit={{ opacity: 0, y: -20, x: "-50%" }}
       style={{ position: "fixed", top: 20, left: "50%", background: bg, color: "#fff", padding: "12px 24px", borderRadius: 14, fontWeight: 600, fontSize: 14, zIndex: 9999, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", gap: 8 }}>
       <Icon d={type === "success" ? Icons.check : Icons.warning} size={16} color="#fff" strokeWidth={2.5} />
-      {message}
+      {String(message)}
     </motion.div>
   );
 }
@@ -140,7 +147,6 @@ function TopBar({ darkMode, setDarkMode, notifications, markAllRead, activeSecti
             style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 20, padding: "6px 14px", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
             <Icon d={darkMode ? Icons.sun : Icons.moon} size={14} color="#fff" /> {darkMode ? "Light" : "Dark"}
           </motion.button>
-          {/* Bell */}
           <div style={{ position: "relative" }}>
             <motion.button whileTap={{ scale: 0.92 }} onClick={() => setShowNotif(!showNotif)}
               style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "50%", width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -162,7 +168,7 @@ function TopBar({ darkMode, setDarkMode, notifications, markAllRead, activeSecti
                         <div style={{ width: 32, height: 32, borderRadius: 8, background: darkMode ? "rgba(16,185,129,0.15)" : "#d1fae5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <Icon d={Icons[n.icon] || Icons.bell} size={15} color="#10b981" />
                         </div>
-                        <span style={{ fontSize: 13, color: D.textPri(darkMode), flex: 1, lineHeight: 1.4 }}>{n.text}</span>
+                        <span style={{ fontSize: 13, color: D.textPri(darkMode), flex: 1, lineHeight: 1.4 }}>{String(n.text)}</span>
                         {!n.read && <span style={{ width: 7, height: 7, background: "#6366f1", borderRadius: "50%", flexShrink: 0 }} />}
                       </div>
                     ))}
@@ -170,14 +176,12 @@ function TopBar({ darkMode, setDarkMode, notifications, markAllRead, activeSecti
               )}
             </AnimatePresence>
           </div>
-          {/* Logout */}
           <motion.button whileTap={{ scale: 0.92 }} onClick={onLogout}
             style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 20, padding: "6px 14px", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6, fontWeight: 600 }}>
             <Icon d={Icons.logout} size={13} color="#fff" /> Logout
           </motion.button>
         </div>
       </div>
-      {/* Nav */}
       <nav style={{ display: "flex", gap: 2, padding: "4px 28px", overflowX: "auto" }}>
         {NAV_ITEMS.map(({ label, id, icon }) => {
           const isActive = activeSection === id;
@@ -218,11 +222,9 @@ function StatCard({ title, value, iconPath, color, darkMode, delay = 0 }) {
   );
 }
 
-// ── JOB CARD — uses real API fields ───────────────────────────────────────────
+// ── JOB CARD ─────────────────────────────────────────────────────────────────
 function JobCard({ job, darkMode, onApply }) {
   const [applying, setApplying] = useState(false);
-
-  // Determine button state from API response fields
   const isClosed    = !job.is_accepting_applications;
   const hasApplied  = job.has_applied;
   const isIneligible= !job.is_eligible;
@@ -230,18 +232,12 @@ function JobCard({ job, darkMode, onApply }) {
   const handleApply = async () => {
     if (isClosed || hasApplied || isIneligible || applying) return;
     setApplying(true);
-    try {
-      await onApply(job.id);
-    } finally {
-      setApplying(false);
-    }
+    try { await onApply(job.id); } finally { setApplying(false); }
   };
 
   const renderAction = () => {
     if (isClosed) return (
-      <div style={{ flex: 1, padding: "9px", borderRadius: 10, background: darkMode ? "rgba(156,163,175,0.15)" : "#f3f4f6", color: D.textMuted(darkMode), fontSize: 13, fontWeight: 600, textAlign: "center" }}>
-        Closed
-      </div>
+      <div style={{ flex: 1, padding: "9px", borderRadius: 10, background: darkMode ? "rgba(156,163,175,0.15)" : "#f3f4f6", color: D.textMuted(darkMode), fontSize: 13, fontWeight: 600, textAlign: "center" }}>Closed</div>
     );
     if (hasApplied) return (
       <div style={{ flex: 1, padding: "9px", borderRadius: 10, background: darkMode ? "rgba(16,185,129,0.15)" : "#d1fae5", color: darkMode ? "#6ee7b7" : "#065f46", fontSize: 13, fontWeight: 700, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -250,7 +246,7 @@ function JobCard({ job, darkMode, onApply }) {
     );
     if (isIneligible) return (
       <div style={{ flex: 1, padding: "9px", borderRadius: 10, background: darkMode ? "rgba(239,68,68,0.1)" : "#fee2e2", color: darkMode ? "#fca5a5" : "#7f1d1d", fontSize: 12, fontWeight: 500, textAlign: "center" }}>
-        {job.ineligible_reason || "Not eligible"}
+        {typeof job.ineligible_reason === "string" ? job.ineligible_reason : "Not eligible"}
       </div>
     );
     return (
@@ -270,24 +266,23 @@ function JobCard({ job, darkMode, onApply }) {
       <div style={{ padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: D.textPri(darkMode) }}>{job.title}</div>
-            {job.company_name && <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600, marginTop: 2 }}>{job.company_name}</div>}
+            <div style={{ fontWeight: 800, fontSize: 15, color: D.textPri(darkMode) }}>{String(job.title || "")}</div>
+            {job.company_name && <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600, marginTop: 2 }}>{String(job.company_name)}</div>}
           </div>
           {isClosed
             ? <span style={{ background: darkMode ? "rgba(156,163,175,0.15)" : "#f3f4f6", color: D.textMuted(darkMode), padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700 }}>Closed</span>
             : <span style={{ background: darkMode ? "rgba(16,185,129,0.2)" : "#d1fae5", color: darkMode ? "#6ee7b7" : "#065f46", padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700 }}>Active</span>
           }
         </div>
-
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
           {job.location && (
             <span style={{ background: darkMode ? "rgba(16,185,129,0.1)" : "#d1fae5", color: darkMode ? "#6ee7b7" : "#065f46", padding: "3px 10px", borderRadius: 20, fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon d={Icons.mapPin} size={10} color={darkMode ? "#6ee7b7" : "#065f46"} /> {job.location}
+              <Icon d={Icons.mapPin} size={10} color={darkMode ? "#6ee7b7" : "#065f46"} /> {String(job.location)}
             </span>
           )}
           {job.ctc_lpa && (
             <span style={{ background: darkMode ? "rgba(99,102,241,0.12)" : "#eef2ff", color: darkMode ? "#c7d2fe" : "#4338ca", padding: "3px 10px", borderRadius: 20, fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon d={Icons.dollar} size={10} color={darkMode ? "#c7d2fe" : "#4338ca"} /> ₹{job.ctc_lpa} LPA
+              <Icon d={Icons.dollar} size={10} color={darkMode ? "#c7d2fe" : "#4338ca"} /> ₹{String(job.ctc_lpa)} LPA
             </span>
           )}
           {job.application_deadline && (
@@ -296,25 +291,21 @@ function JobCard({ job, darkMode, onApply }) {
             </span>
           )}
         </div>
-
         {job.description && (
           <p style={{ fontSize: 12, color: D.textSec(darkMode), marginBottom: 12, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-            {job.description}
+            {String(job.description)}
           </p>
         )}
-
-        {/* Eligibility info */}
         {job.eligibility && (
           <div style={{ marginBottom: 12, padding: "8px 12px", background: darkMode ? "rgba(99,102,241,0.08)" : "#eef2ff", borderRadius: 8, border: `1px solid ${D.border(darkMode)}` }}>
             <div style={{ fontSize: 11, color: D.textSec(darkMode), display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {job.eligibility.min_cgpa && <span>Min CGPA: {job.eligibility.min_cgpa}</span>}
+              {job.eligibility.min_cgpa && <span>Min CGPA: {String(job.eligibility.min_cgpa)}</span>}
               {job.eligibility.allowed_depts?.length > 0 && <span>Depts: {job.eligibility.allowed_depts.join(", ")}</span>}
               {job.eligibility.allowed_batches?.length > 0 && <span>Batch: {job.eligibility.allowed_batches.join(", ")}</span>}
-              {job.eligibility.max_backlogs !== null && job.eligibility.max_backlogs !== undefined && <span>Max Backlogs: {job.eligibility.max_backlogs}</span>}
+              {job.eligibility.max_backlogs !== null && job.eligibility.max_backlogs !== undefined && <span>Max Backlogs: {String(job.eligibility.max_backlogs)}</span>}
             </div>
           </div>
         )}
-
         {renderAction()}
       </div>
     </motion.div>
@@ -323,19 +314,19 @@ function JobCard({ job, darkMode, onApply }) {
 
 // ── APPLICATION ROW ───────────────────────────────────────────────────────────
 function ApplicationRow({ app, darkMode }) {
-  const cfg = APP_STATUS[app.status] || { label: app.status, bg: "#f3f4f6", color: "#374151", dot: "#9ca3af" };
+  const cfg = APP_STATUS[app.status] || { label: String(app.status || "Unknown"), bg: "#f3f4f6", color: "#374151", dot: "#9ca3af" };
   return (
     <motion.div whileHover={{ x: 3 }}
       style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 12, marginBottom: 8, background: darkMode ? "rgba(16,185,129,0.05)" : "#f9faff", border: `1px solid ${D.border(darkMode)}`, flexWrap: "wrap", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 38, height: 38, borderRadius: 10, background: darkMode ? "rgba(16,185,129,0.15)" : "#d1fae5", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, color: "#10b981" }}>
-          {(app.opportunity_company || app.opportunity_title || "?")[0]}
+          {String(app.opportunity_company || app.opportunity_title || "?")[0]}
         </div>
         <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: D.textPri(darkMode) }}>{app.opportunity_title}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: D.textPri(darkMode) }}>{String(app.opportunity_title || "")}</div>
           <div style={{ fontSize: 12, color: D.textSec(darkMode) }}>
-            {app.opportunity_company && <span>{app.opportunity_company} · </span>}
-            {app.opportunity_ctc_lpa && <span>₹{app.opportunity_ctc_lpa} LPA · </span>}
+            {app.opportunity_company && <span>{String(app.opportunity_company)} · </span>}
+            {app.opportunity_ctc_lpa && <span>₹{String(app.opportunity_ctc_lpa)} LPA · </span>}
             <span>{new Date(app.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
           </div>
         </div>
@@ -365,8 +356,8 @@ function InterviewCard({ company, round, date, darkMode }) {
       style={{ background: darkMode ? "linear-gradient(135deg,rgba(6,95,70,0.4),rgba(16,185,129,0.15))" : "linear-gradient(135deg,#f0fdf4,#d1fae5)", borderRadius: 16, padding: "18px 20px", border: `1px solid ${D.border(darkMode)}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: D.textPri(darkMode) }}>{company}</div>
-          <div style={{ fontSize: 12, color: D.textSec(darkMode), marginTop: 2 }}>{round}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: D.textPri(darkMode) }}>{String(company)}</div>
+          <div style={{ fontSize: 12, color: D.textSec(darkMode), marginTop: 2 }}>{String(round)}</div>
         </div>
         <span style={{ background: darkMode ? "rgba(16,185,129,0.2)" : "#a7f3d0", color: darkMode ? "#6ee7b7" : "#065f46", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 600 }}>Scheduled</span>
       </div>
@@ -391,7 +382,6 @@ function ATSSection({ darkMode }) {
   const [loading, setLoading]   = useState(false);
   const matched = ["Java", "SQL"], missing = ["React", "Docker", "AWS"];
 
-  // POST /upload/resume — real endpoint
   const handleUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     const formData = new FormData();
@@ -400,7 +390,7 @@ function ATSSection({ darkMode }) {
       await API.post("/upload/resume", formData, { headers: { "Content-Type": "multipart/form-data" } });
       setUploaded(true);
     } catch {
-      setUploaded(true); // still mark uploaded for ATS UI even if upload fails
+      setUploaded(true);
     }
   };
 
@@ -418,7 +408,7 @@ function ATSSection({ darkMode }) {
           </div>
           <div>
             <div style={{ fontWeight: 600, color: D.textPri(darkMode), fontSize: 14 }}>{uploaded ? "Resume Uploaded ✓" : "Upload Your Resume"}</div>
-            <div style={{ fontSize: 12, color: D.textSec(darkMode), marginTop: 2 }}>PDF or DOCX · Sends to POST /upload/resume</div>
+            <div style={{ fontSize: 12, color: D.textSec(darkMode), marginTop: 2 }}>PDF or DOCX</div>
           </div>
           {uploaded && <div style={{ marginLeft: "auto", width: 28, height: 28, borderRadius: "50%", background: "#d1fae5", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon d={Icons.check} size={14} color="#10b981" strokeWidth={2.5} /></div>}
           <input type="file" style={{ display: "none" }} onChange={handleUpload} accept=".pdf,.docx" />
@@ -471,9 +461,7 @@ function LogoutModal({ onConfirm, onCancel, darkMode }) {
         <div style={{ fontSize: 14, color: D.textSec(darkMode), marginBottom: 24 }}>Are you sure you want to logout?</div>
         <div style={{ display: "flex", gap: 12 }}>
           <motion.button whileTap={{ scale: 0.96 }} onClick={onCancel}
-            style={{ flex: 1, padding: "11px", borderRadius: 12, border: `1px solid ${D.border(darkMode)}`, background: "transparent", color: D.textPri(darkMode), fontWeight: 600, cursor: "pointer", fontSize: 14 }}>
-            Cancel
-          </motion.button>
+            style={{ flex: 1, padding: "11px", borderRadius: 12, border: `1px solid ${D.border(darkMode)}`, background: "transparent", color: D.textPri(darkMode), fontWeight: 600, cursor: "pointer", fontSize: 14 }}>Cancel</motion.button>
           <motion.button whileTap={{ scale: 0.96 }} onClick={onConfirm}
             style={{ flex: 1, padding: "11px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
             <Icon d={Icons.logout} size={14} color="#fff" /> Yes, Logout
@@ -503,22 +491,20 @@ export default function StudentDashboard() {
     avatar: profilePic,
   };
 
-  const showToast = (message, type = "success") => setToast({ message, type, id: Date.now() });
+  const showToast = (message, type = "success") => setToast({ message: String(message), type, id: Date.now() });
   const handleLogout = () => { localStorage.clear(); navigate("/login"); };
   const handleProfilePicChange = (e) => {
     const file = e.target.files[0]; if (!file) return;
     setProfilePic(URL.createObjectURL(file)); setShowMenu(false); e.target.value = "";
   };
 
-  // ── NOTIFICATIONS ──────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState([
     { id: 1, text: "Welcome to the Placement Portal!", read: false, icon: "bell" },
   ]);
   const markAllRead = () => setNotifications(p => p.map(n => ({ ...n, read: true })));
   const addNotif = (text, icon = "bell") =>
-    setNotifications(p => [{ id: Date.now(), text, read: false, icon }, ...p]);
+    setNotifications(p => [{ id: Date.now(), text: String(text), read: false, icon }, ...p]);
 
-  // ── INTERSECTION OBSERVER ──────────────────────────────────────────────────
   useEffect(() => {
     const observers = NAV_ITEMS.map(({ id }) => {
       const el = document.getElementById(id); if (!el) return null;
@@ -529,65 +515,62 @@ export default function StudentDashboard() {
   }, []);
 
   // ── API: FETCH ELIGIBLE JOB LISTINGS ──────────────────────────────────────
-  // GET /opportunities/eligible
-  const [jobs, setJobs]           = useState([]);
+  const [jobs, setJobs]               = useState([]);
   const [jobsLoading, setJobsLoading] = useState(false);
-  const [jobsError, setJobsError] = useState("");
+  const [jobsError, setJobsError]     = useState("");
 
   const fetchJobs = useCallback(async () => {
     setJobsLoading(true); setJobsError("");
     try {
       const res = await API.get("/opportunities/eligible");
-      setJobs(res.data);
+      setJobs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      const msg = err.response?.data?.detail || "Failed to load job listings";
-      setJobsError(msg);
+      const detail = err.response?.data?.detail;
+      setJobsError(parseApiError(detail, "Failed to load job listings"));
     } finally { setJobsLoading(false); }
   }, []);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
   // ── API: APPLY TO OPPORTUNITY ──────────────────────────────────────────────
-  // POST /opportunities/{opportunity_id}/apply
   const handleApply = async (opportunityId) => {
     try {
       await API.post(`/opportunities/${opportunityId}/apply`);
-      // Optimistically mark as applied in UI
       setJobs(prev => prev.map(j => j.id === opportunityId ? { ...j, has_applied: true } : j));
       const job = jobs.find(j => j.id === opportunityId);
       showToast(`Applied to ${job?.title || "opportunity"} successfully!`, "success");
       addNotif(`You applied to ${job?.title || "an opportunity"}!`, "send");
-      // Refresh my applications
       fetchMyApplications();
     } catch (err) {
-      const msg = err.response?.data?.detail || "Failed to apply";
-      // 409 = already applied, 400 = closed, 403 = not eligible
-      showToast(msg, "error");
+      const detail = err.response?.data?.detail;
+      showToast(parseApiError(detail, "Failed to apply"), "error");
     }
   };
 
-  // ── API: MY APPLICATIONS ───────────────────────────────────────────────────
-  // GET /applications/me
-  const [myApplications, setMyApplications]     = useState([]);
-  const [appsLoading, setAppsLoading]           = useState(false);
-  const [appsError, setAppsError]               = useState("");
+// ── API: MY APPLICATIONS ───────────────────────────────────────────────────
+const [myApplications, setMyApplications] = useState([]);
+const [appsLoading, setAppsLoading]       = useState(false);
+const [appsError, setAppsError]           = useState("");
 
-  const fetchMyApplications = useCallback(async () => {
-    setAppsLoading(true); setAppsError("");
-    try {
-      const res = await API.get("/applications/me");
-      setMyApplications(res.data);
-    } catch (err) {
-      setAppsError(err.response?.data?.detail || "Failed to load applications");
-    } finally { setAppsLoading(false); }
-  }, []);
+const fetchMyApplications = useCallback(async () => {
+  setAppsLoading(true);
+  setAppsError("");
+  try {
+    const res = await API.get("/student/applications");
+    setMyApplications(Array.isArray(res.data) ? res.data : []);
+  } catch (err) {
+    const detail = err.response?.data?.detail;
+    setAppsError(parseApiError(detail, "Failed to load applications"));
+  } finally {
+    setAppsLoading(false);
+  }
+}, []);
 
-  useEffect(() => { fetchMyApplications(); }, [fetchMyApplications]);
+useEffect(() => { fetchMyApplications(); }, [fetchMyApplications]);
 
   const profileCompletion = Math.min(20 + skills.length * 15 + 20, 100);
   const addSkill = () => { const s = prompt("Enter skill name:"); if (s?.trim()) setSkills(p => [...p, s.trim()]); };
 
-  // Derive stats from real data
   const statsApplied     = myApplications.length;
   const statsActive      = myApplications.filter(a => !["offered","accepted","rejected"].includes(a.status)).length;
   const statsOffers      = myApplications.filter(a => a.status === "offered" || a.status === "accepted").length;
@@ -595,29 +578,27 @@ export default function StudentDashboard() {
   const statsInterviewed = myApplications.filter(a => a.status === "interviewed" || a.status === "test_scheduled").length;
   const statsRejected    = myApplications.filter(a => a.status === "rejected").length;
 
-  // Static data
   const interviews = [
     { id: 1, company: "TCS",   round: "Technical Round", date: "2026-04-15T10:00:00" },
     { id: 2, company: "Wipro", round: "HR Round",        date: "2026-04-18T14:00:00" },
   ];
   const placedStudents = [
-    { id: 1, name: "Aarav Mehta",  company: "Wipro",   position: "Frontend Developer", package: "8 LPA",  batch: "2025", photo: "https://i.pravatar.cc/100?img=3",  greeting: "Congratulations Aarav! Placed at Wipro." },
-    { id: 2, name: "Priya Shah",   company: "Infosys", position: "System Analyst",     package: "9 LPA",  batch: "2025", photo: "https://i.pravatar.cc/100?img=5",  greeting: "Well done Priya! Your hard work paid off." },
-    { id: 3, name: "Rohan Desai",  company: "TCS",     position: "Software Developer", package: "7 LPA",  batch: "2025", photo: "https://i.pravatar.cc/100?img=8",  greeting: "Rohan, your consistency brought you to TCS!" },
-    { id: 4, name: "Neha Sharma",  company: "Accenture",position: "Business Analyst",  package: "10 LPA", batch: "2025", photo: "https://i.pravatar.cc/100?img=9",  greeting: "Neha shines at Accenture! Brilliant achievement." },
+    { id: 1, name: "Aarav Mehta",  company: "Wipro",    position: "Frontend Developer", package: "8 LPA",  batch: "2025", photo: "https://i.pravatar.cc/100?img=3",  greeting: "Congratulations Aarav! Placed at Wipro." },
+    { id: 2, name: "Priya Shah",   company: "Infosys",  position: "System Analyst",     package: "9 LPA",  batch: "2025", photo: "https://i.pravatar.cc/100?img=5",  greeting: "Well done Priya! Your hard work paid off." },
+    { id: 3, name: "Rohan Desai",  company: "TCS",      position: "Software Developer", package: "7 LPA",  batch: "2025", photo: "https://i.pravatar.cc/100?img=8",  greeting: "Rohan, your consistency brought you to TCS!" },
+    { id: 4, name: "Neha Sharma",  company: "Accenture",position: "Business Analyst",   package: "10 LPA", batch: "2025", photo: "https://i.pravatar.cc/100?img=9",  greeting: "Neha shines at Accenture! Brilliant achievement." },
   ];
   const alumniList = [
-    { id: 1, name: "Aditya Kumar", role: "Senior SDE",     company: "Google",    batch: "2022", branch: "B.Tech CSE", photo: "https://i.pravatar.cc/100?img=11", quote: "Indus gave me the foundation. The placement cell was incredibly supportive." },
-    { id: 2, name: "Simran Kaur",  role: "Product Manager", company: "Flipkart", batch: "2021", branch: "MBA",        photo: "https://i.pravatar.cc/100?img=12", quote: "The mock interviews and resume workshops were game changers for me." },
-    { id: 3, name: "Dev Mehta",    role: "Data Scientist",  company: "Amazon",   batch: "2023", branch: "B.Tech CSE", photo: "https://i.pravatar.cc/100?img=13", quote: "Focus on projects and skills. The placement portal made tracking easy." },
-    { id: 4, name: "Pooja Verma",  role: "UX Designer",     company: "Microsoft",batch: "2022", branch: "B.Des",      photo: "https://i.pravatar.cc/100?img=14", quote: "Indus's alumni network helped me land my dream role at Microsoft." },
+    { id: 1, name: "Aditya Kumar", role: "Senior SDE",      company: "Google",    batch: "2022", branch: "B.Tech CSE", photo: "https://i.pravatar.cc/100?img=11", quote: "Indus gave me the foundation. The placement cell was incredibly supportive." },
+    { id: 2, name: "Simran Kaur",  role: "Product Manager",  company: "Flipkart",  batch: "2021", branch: "MBA",        photo: "https://i.pravatar.cc/100?img=12", quote: "The mock interviews and resume workshops were game changers for me." },
+    { id: 3, name: "Dev Mehta",    role: "Data Scientist",   company: "Amazon",    batch: "2023", branch: "B.Tech CSE", photo: "https://i.pravatar.cc/100?img=13", quote: "Focus on projects and skills. The placement portal made tracking easy." },
+    { id: 4, name: "Pooja Verma",  role: "UX Designer",      company: "Microsoft", batch: "2022", branch: "B.Des",      photo: "https://i.pravatar.cc/100?img=14", quote: "Indus's alumni network helped me land my dream role at Microsoft." },
   ];
 
-  // API error component
   const APIError = ({ message, onRetry }) => (
     <div style={{ padding: "14px 18px", background: darkMode ? "rgba(239,68,68,0.12)" : "#fee2e2", borderRadius: 12, color: darkMode ? "#fca5a5" : "#7f1d1d", fontSize: 13, marginBottom: 12, border: "1px solid rgba(239,68,68,0.3)", display: "flex", alignItems: "center", gap: 10 }}>
       <Icon d={Icons.warning} size={16} color={darkMode ? "#fca5a5" : "#ef4444"} />
-      <span style={{ flex: 1 }}>{message}</span>
+      <span style={{ flex: 1 }}>{String(message)}</span>
       {onRetry && <button onClick={onRetry} style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Retry</button>}
     </div>
   );
@@ -626,14 +607,12 @@ export default function StudentDashboard() {
     <div style={{ minHeight: "100vh", background: D.pageBg(darkMode), fontFamily: "'Outfit','Segoe UI',sans-serif", color: D.textPri(darkMode), transition: "background 0.35s, color 0.35s" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');`}</style>
 
-      {/* Toast */}
       <AnimatePresence>
         {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </AnimatePresence>
 
       <TopBar darkMode={darkMode} setDarkMode={setDarkMode} notifications={notifications} markAllRead={markAllRead} activeSection={activeSection} onLogout={() => setShowLogout(true)} />
 
-      {/* Logout confirm */}
       <AnimatePresence>
         {showLogout && <LogoutModal darkMode={darkMode} onConfirm={handleLogout} onCancel={() => setShowLogout(false)} />}
       </AnimatePresence>
@@ -642,14 +621,13 @@ export default function StudentDashboard() {
 
         {/* ── DASHBOARD ── */}
         <div id="section-dashboard">
-          {/* Welcome Banner */}
           <motion.div initial={{ opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }}
             style={{ background: darkMode ? "linear-gradient(135deg,rgba(79,70,229,0.6),rgba(6,95,70,0.5))" : "linear-gradient(135deg,#4f46e5,#10b981)", borderRadius: 22, padding: "26px 32px", marginBottom: 28, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", right: -50, top: -50, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
             <div style={{ position: "absolute", right: 60, bottom: -70, width: 220, height: 220, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
             <div style={{ position: "relative" }}>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginBottom: 4 }}>Welcome back 👋</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{student.name}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{String(student.name)}</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: 8 }}>
                 <Icon d={Icons.user} size={13} color="rgba(255,255,255,0.6)" />
                 {student.branch} <span style={{ opacity: 0.4 }}>·</span> {student.email}
@@ -678,17 +656,15 @@ export default function StudentDashboard() {
             </div>
           </motion.div>
 
-          {/* Stats — derived from real API data */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 14, marginBottom: 8 }}>
-            <StatCard title="Applied"     value={statsApplied}     iconPath={Icons.send}       color="indigo"  darkMode={darkMode} delay={0}    />
-            <StatCard title="Active"      value={statsActive}      iconPath={Icons.lightning}  color="sky"     darkMode={darkMode} delay={0.08} />
-            <StatCard title="Shortlisted" value={statsShortlisted} iconPath={Icons.briefcase}  color="violet"  darkMode={darkMode} delay={0.16} />
-            <StatCard title="Interviewed" value={statsInterviewed} iconPath={Icons.mic}        color="amber"   darkMode={darkMode} delay={0.24} />
-            <StatCard title="Offers"      value={statsOffers}      iconPath={Icons.trophy}     color="emerald" darkMode={darkMode} delay={0.32} />
-            <StatCard title="Rejected"    value={statsRejected}    iconPath={Icons.close}      color="rose"    darkMode={darkMode} delay={0.40} />
+            <StatCard title="Applied"     value={statsApplied}     iconPath={Icons.send}      color="indigo"  darkMode={darkMode} delay={0}    />
+            <StatCard title="Active"      value={statsActive}      iconPath={Icons.lightning} color="sky"     darkMode={darkMode} delay={0.08} />
+            <StatCard title="Shortlisted" value={statsShortlisted} iconPath={Icons.briefcase} color="violet"  darkMode={darkMode} delay={0.16} />
+            <StatCard title="Interviewed" value={statsInterviewed} iconPath={Icons.mic}       color="amber"   darkMode={darkMode} delay={0.24} />
+            <StatCard title="Offers"      value={statsOffers}      iconPath={Icons.trophy}    color="emerald" darkMode={darkMode} delay={0.32} />
+            <StatCard title="Rejected"    value={statsRejected}    iconPath={Icons.close}     color="rose"    darkMode={darkMode} delay={0.40} />
           </div>
 
-          {/* Profile Snapshot */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 20, marginTop: 20 }}>
             <div>
               <SectionTitle text="Profile Snapshot" darkMode={darkMode} />
@@ -696,7 +672,7 @@ export default function StudentDashboard() {
                 <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16 }}>
                   <img key={profilePic} src={profilePic} style={{ width: 54, height: 54, borderRadius: "50%", border: "2px solid #10b981", objectFit: "cover", flexShrink: 0 }} alt="avatar" />
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: D.textPri(darkMode) }}>{student.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: D.textPri(darkMode) }}>{String(student.name)}</div>
                     <div style={{ fontSize: 12, color: D.textSec(darkMode), marginBottom: 2 }}>{student.branch}</div>
                     <div style={{ fontSize: 12, color: D.textSec(darkMode) }}>{student.email}</div>
                   </div>
@@ -713,7 +689,7 @@ export default function StudentDashboard() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
                   {skills.map((s, i) => (
-                    <span key={i} style={{ background: darkMode ? "rgba(16,185,129,0.15)" : "#d1fae5", color: darkMode ? "#6ee7b7" : "#065f46", padding: "3px 11px", borderRadius: 20, fontSize: 12, fontWeight: 500, border: `1px solid ${D.border(darkMode)}` }}>{s}</span>
+                    <span key={i} style={{ background: darkMode ? "rgba(16,185,129,0.15)" : "#d1fae5", color: darkMode ? "#6ee7b7" : "#065f46", padding: "3px 11px", borderRadius: 20, fontSize: 12, fontWeight: 500, border: `1px solid ${D.border(darkMode)}` }}>{String(s)}</span>
                   ))}
                   <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={addSkill}
                     style={{ background: "linear-gradient(135deg,#6366f1,#10b981)", color: "#fff", border: "none", borderRadius: 20, padding: "3px 11px", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
@@ -727,7 +703,6 @@ export default function StudentDashboard() {
               </Card>
             </div>
 
-            {/* Application Status Summary */}
             <div>
               <SectionTitle text="Application Summary" darkMode={darkMode} />
               <Card darkMode={darkMode}>
@@ -756,7 +731,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* ── JOB LISTINGS (GET /opportunities/eligible) ── */}
+        {/* ── JOB LISTINGS ── */}
         <div id="section-jobs" style={{ scrollMarginTop: 90 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <SectionTitle text="Job Listings" darkMode={darkMode} />
@@ -765,27 +740,22 @@ export default function StudentDashboard() {
               <Icon d={Icons.refresh} size={13} color={D.textSec(darkMode)} /> Refresh
             </motion.button>
           </div>
-
           {jobsLoading && (
             <div style={{ textAlign: "center", padding: 40 }}>
-              <Spinner /><div style={{ marginTop: 12, color: D.textSec(darkMode), fontSize: 13 }}>Loading from GET /opportunities/eligible...</div>
+              <Spinner /><div style={{ marginTop: 12, color: D.textSec(darkMode), fontSize: 13 }}>Loading job listings...</div>
             </div>
           )}
           {jobsError && <APIError message={jobsError} onRetry={fetchJobs} />}
-
           {!jobsLoading && !jobsError && (
-            <>
-              {jobs.length === 0
-                ? <Card darkMode={darkMode}><div style={{ textAlign: "center", padding: "24px", color: D.textMuted(darkMode), fontSize: 13 }}>No job listings available right now.</div></Card>
-                : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
-                    {jobs.map(job => <JobCard key={job.id} job={job} darkMode={darkMode} onApply={handleApply} />)}
-                  </div>
-              }
-            </>
+            jobs.length === 0
+              ? <Card darkMode={darkMode}><div style={{ textAlign: "center", padding: "24px", color: D.textMuted(darkMode), fontSize: 13 }}>No job listings available right now.</div></Card>
+              : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
+                  {jobs.map(job => <JobCard key={job.id} job={job} darkMode={darkMode} onApply={handleApply} />)}
+                </div>
           )}
         </div>
 
-        {/* ── MY APPLICATIONS (GET /applications/me) ── */}
+        {/* ── MY APPLICATIONS ── */}
         <div id="section-applications" style={{ scrollMarginTop: 90 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <SectionTitle text="My Applications" darkMode={darkMode} />
@@ -794,7 +764,6 @@ export default function StudentDashboard() {
               <Icon d={Icons.refresh} size={13} color={D.textSec(darkMode)} /> Refresh
             </motion.button>
           </div>
-
           <Card darkMode={darkMode}>
             {appsLoading
               ? <div style={{ textAlign: "center", padding: 32 }}><Spinner /></div>
@@ -807,7 +776,7 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* ── INTERVIEWS (static — can be wired to API when endpoint is ready) ── */}
+        {/* ── INTERVIEWS ── */}
         <div id="section-interviews" style={{ scrollMarginTop: 90 }}>
           <SectionTitle text="Upcoming Interviews" darkMode={darkMode} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 }}>
@@ -876,7 +845,6 @@ export default function StudentDashboard() {
           <ATSSection darkMode={darkMode} />
         </div>
 
-        {/* Footer */}
         <div style={{ textAlign: "center", marginTop: 48, padding: "20px 0", borderTop: `1px solid ${D.border(darkMode)}`, fontSize: 12, color: D.textMuted(darkMode) }}>
           © {new Date().getFullYear()} Indus University Placement Portal · All rights reserved
         </div>
