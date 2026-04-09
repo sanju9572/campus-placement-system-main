@@ -11,6 +11,7 @@ export default function StudentProfileForm() {
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
+  // ✅ Single formData state — persists across all section navigations
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -34,8 +35,10 @@ export default function StudentProfileForm() {
     { title: "Resume & Links", icon: FaLink }
   ];
 
+  // ✅ handleChange uses functional update so no stale closure issues
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleResumeChange = (e) => {
@@ -57,45 +60,37 @@ export default function StudentProfileForm() {
     const token = localStorage.getItem("token");
     const data = new FormData();
     data.append("file", resumeFile);
-
     const response = await axios.post("/upload/resume", data, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "multipart/form-data",
       },
     });
-
     return response.data.resume_url;
   };
 
   const validateForm = () => {
-    // Basic Info
     if (!formData.first_name.trim()) return alert("Please enter First Name!") || false;
     if (!formData.last_name.trim()) return alert("Please enter Last Name!") || false;
     if (!formData.roll_no.trim()) return alert("Please enter Roll Number!") || false;
     if (!formData.department_id.trim()) return alert("Please enter Department ID!") || false;
 
-    // Graduation Year
     const gradYear = Number(formData.graduation_year);
     if (!gradYear) return alert("Please enter Graduation Year!") || false;
     if (gradYear < 2000 || gradYear > 2030) return alert("Graduation Year must be between 2000 and 2030!") || false;
 
-    // CGPA
     const cgpa = Number(formData.cgpa);
     if (!formData.cgpa) return alert("Please enter CGPA!") || false;
     if (cgpa < 1 || cgpa > 10) return alert("CGPA must be between 1 and 10!") || false;
 
-    // 10th Percentage
     const tenth = Number(formData.tenth_percentage);
     if (!formData.tenth_percentage) return alert("Please enter 10th Percentage!") || false;
     if (tenth < 0 || tenth > 100) return alert("10th Percentage must be between 0 and 100!") || false;
 
-    // 12th Percentage
     const twelfth = Number(formData.twelfth_percentage);
     if (!formData.twelfth_percentage) return alert("Please enter 12th Percentage!") || false;
     if (twelfth < 0 || twelfth > 100) return alert("12th Percentage must be between 0 and 100!") || false;
 
-    // Backlogs
     const active = Number(formData.active_backlogs);
     const total = Number(formData.total_backlogs);
     if (formData.active_backlogs === "") return alert("Please enter Active Backlogs!") || false;
@@ -104,7 +99,6 @@ export default function StudentProfileForm() {
     if (total < 0) return alert("Total Backlogs cannot be negative!") || false;
     if (active > total) return alert("Active Backlogs cannot be more than Total Backlogs!") || false;
 
-    // URLs
     const urlPattern = /^https?:\/\/.+\..+/;
     if (!formData.linkedin_url) return alert("Please enter LinkedIn URL!") || false;
     if (!urlPattern.test(formData.linkedin_url)) return alert("Please enter a valid LinkedIn URL!") || false;
@@ -113,7 +107,6 @@ export default function StudentProfileForm() {
     if (!formData.portfolio_url) return alert("Please enter Portfolio URL!") || false;
     if (!urlPattern.test(formData.portfolio_url)) return alert("Please enter a valid Portfolio URL!") || false;
 
-    // Resume
     if (!resumeFile) return alert("Please upload your resume PDF!") || false;
 
     return true;
@@ -121,13 +114,10 @@ export default function StudentProfileForm() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     try {
       setUploading(true);
       const token = localStorage.getItem("token");
-
       const resumeUrl = await uploadResume();
-
       const payload = {
         ...formData,
         graduation_year: Number(formData.graduation_year),
@@ -140,14 +130,11 @@ export default function StudentProfileForm() {
         placement_status: "unplaced",
         is_profile_complete: true
       };
-
       await axios.post("/student/profile", payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
       alert("Profile Completed Successfully 🎉");
       navigate("/student-dashboard");
-
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
@@ -161,18 +148,18 @@ export default function StudentProfileForm() {
     }
   };
 
+  // ✅ Navigation preserves section index cleanly; progress derived from section
+  const goToSection = (index) => {
+    setCurrentSection(index);
+    setProgress((index + 1) * 25);
+  };
+
   const nextSection = () => {
-    if (currentSection < 3) {
-      setCurrentSection(prev => prev + 1);
-      setProgress(prev => prev + 25);
-    }
+    if (currentSection < 3) goToSection(currentSection + 1);
   };
 
   const prevSection = () => {
-    if (currentSection > 0) {
-      setCurrentSection(prev => prev - 1);
-      setProgress(prev => prev - 25);
-    }
+    if (currentSection > 0) goToSection(currentSection - 1);
   };
 
   return (
@@ -207,7 +194,7 @@ export default function StudentProfileForm() {
         <div className="p-3 bg-white/40 backdrop-blur-md">
           <div className="flex gap-2">
             {sections.map((section, index) => (
-              <button key={index} onClick={() => setCurrentSection(index)}
+              <button key={index} onClick={() => goToSection(index)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
                   index === currentSection
                     ? "bg-gradient-to-r from-indigo-500 to-emerald-500 text-white"
@@ -225,13 +212,14 @@ export default function StudentProfileForm() {
 
           {currentSection === 0 && (
             <>
-              <Input label="First Name *" name="first_name" onChange={handleChange}/>
-              <Input label="Last Name *" name="last_name" onChange={handleChange}/>
-              <Input label="Roll Number *" name="roll_no" onChange={handleChange}/>
-              <Input label="Department ID *" name="department_id" onChange={handleChange}/>
+              <Input label="First Name *" name="first_name" value={formData.first_name} onChange={handleChange}/>
+              <Input label="Last Name *" name="last_name" value={formData.last_name} onChange={handleChange}/>
+              <Input label="Roll Number *" name="roll_no" value={formData.roll_no} onChange={handleChange}/>
+              <Input label="Department ID *" name="department_id" value={formData.department_id} onChange={handleChange}/>
               <Input
                 label="Graduation Year * (2000-2030)"
                 name="graduation_year"
+                value={formData.graduation_year}
                 type="number"
                 min="2000"
                 max="2030"
@@ -245,6 +233,7 @@ export default function StudentProfileForm() {
               <Input
                 label="CGPA * (1-10)"
                 name="cgpa"
+                value={formData.cgpa}
                 type="number"
                 min="1"
                 max="10"
@@ -254,6 +243,7 @@ export default function StudentProfileForm() {
               <Input
                 label="10th Percentage * (0-100)"
                 name="tenth_percentage"
+                value={formData.tenth_percentage}
                 type="number"
                 min="0"
                 max="100"
@@ -263,6 +253,7 @@ export default function StudentProfileForm() {
               <Input
                 label="12th Percentage * (0-100)"
                 name="twelfth_percentage"
+                value={formData.twelfth_percentage}
                 type="number"
                 min="0"
                 max="100"
@@ -277,6 +268,7 @@ export default function StudentProfileForm() {
               <Input
                 label="Active Backlogs *"
                 name="active_backlogs"
+                value={formData.active_backlogs}
                 type="number"
                 min="0"
                 onChange={handleChange}
@@ -284,6 +276,7 @@ export default function StudentProfileForm() {
               <Input
                 label="Total Backlogs *"
                 name="total_backlogs"
+                value={formData.total_backlogs}
                 type="number"
                 min="0"
                 onChange={handleChange}
@@ -307,9 +300,9 @@ export default function StudentProfileForm() {
                   <p className="text-green-600 text-xs mt-1">✅ {resumeFile.name} selected</p>
                 )}
               </div>
-              <Input label="LinkedIn URL *" name="linkedin_url" type="url" onChange={handleChange}/>
-              <Input label="GitHub URL *" name="github_url" type="url" onChange={handleChange}/>
-              <Input label="Portfolio URL *" name="portfolio_url" type="url" onChange={handleChange}/>
+              <Input label="LinkedIn URL *" name="linkedin_url" value={formData.linkedin_url} type="url" onChange={handleChange}/>
+              <Input label="GitHub URL *" name="github_url" value={formData.github_url} type="url" onChange={handleChange}/>
+              <Input label="Portfolio URL *" name="portfolio_url" value={formData.portfolio_url} type="url" onChange={handleChange}/>
             </>
           )}
 
@@ -335,13 +328,15 @@ export default function StudentProfileForm() {
   );
 }
 
-function Input({ label, name, type = "text", onChange, min, max, step }) {
+// ✅ Input now accepts `value` prop so it's a controlled component — data persists
+function Input({ label, name, type = "text", onChange, min, max, step, value }) {
   return (
     <div>
       <label className="block text-sm text-gray-600 mb-1">{label}</label>
       <input
         name={name}
         type={type}
+        value={value}
         onChange={onChange}
         min={min}
         max={max}
